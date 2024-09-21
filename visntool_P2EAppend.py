@@ -1,8 +1,8 @@
 bl_info = {
     "name": "STOOL",
     "author": "ST",
-    "version": (3, 36),
-    "blender": (2, 90, 0),
+    "version": (0, 2),
+    "blender": (4, 0, 0),
 }
 
 import bpy
@@ -24,26 +24,38 @@ class NewpanelST(bpy.types.Panel):
         layout = self.layout
         row = layout.row()
         layout.operator("object.parent_to_empty_visn")
-        layout.operator("object.clear_parent_visn")
-        layout.operator("object.release_all_children_visn")
-        layout.operator("object.pickup_new_parent_visn")
         layout.operator("object.fast_set_parent_visn") 
+        layout.operator("object.clear_parent_visn")
+        layout.operator("object.select_parent_visn")
+        layout.operator("object.select_children_visn")
+        layout.operator("object.release_all_children_to_world_visn")
+        layout.operator("object.release_all_children_to_subparent_visn")
+        layout.operator("object.solo_pick_visn")
+        layout.operator("object.pickup_new_parent_visn")
 
 def register():
     bpy.utils.register_class(NewpanelST)
     bpy.utils.register_class(P2E)
     bpy.utils.register_class(ClearParent)
     bpy.utils.register_class(RAQ)
+    bpy.utils.register_class(RAQtoSubparent)
     bpy.utils.register_class(PickupNewParent)
     bpy.utils.register_class(fastSetParent)
+    bpy.utils.register_class(selectChildren)
+    bpy.utils.register_class(selectParent)
+    bpy.utils.register_class(soloPick)
     
 def unregister():
     bpy.utils.unregister_class(NewpanelST)
     bpy.utils.unregister_class(P2E)
     bpy.utils.unregister_class(ClearParent)
     bpy.utils.unregister_class(RAQ)
+    bpy.utils.unregister_class(RAQtoSubparent)
     bpy.utils.unregister_class(PickupNewParent)
     bpy.utils.unregister_class(fastSetParent)
+    bpy.utils.unregister_class(selectChildren)
+    bpy.utils.unregister_class(selectParent)
+    bpy.utils.unregister_class(soloPick)
     
 def centro(sel):
     x = sum([obj.location[0] for obj in sel]) / len(sel)
@@ -58,68 +70,117 @@ def getChildren(myObject):
             children.append(ob) 
     return children 
 
-class PickupNewParent(Operator):
-    bl_idname = "object.pickup_new_parent_visn"
-    bl_label = "Pickup to New Parent"
-    bl_description = "pickup anywhere selected objects to new parent"
+class soloPick(Operator):
+    '''断开所选物体的所有父子级关系，捡出来放在世界层级，子级归更上一层父级管。'''
+    bl_idname = "object.solo_pick_visn"
+    bl_label = "Pickup Solo"
+    bl_description = "Break all of the selections"
     bl_options = {"REGISTER", "UNDO"}
-
-    nombre: StringProperty(
-                    name="",
-                    default='OBJECTS',
-                    description='Give the empty / group a name'
-                    )
-    grupo: BoolProperty(
-                    name="Create Group",
-                    default=False,
-                    description="Also add objects to a group"
-                    )
-    locat: EnumProperty(
-                    name='',
-                    items=[('CURSOR', 'Cursor', 'Cursor'), ('ACTIVE', 'Active', 'Active'),
-                           ('CENTER', 'Center', 'Selection Center')],
-                    description='Empty location',
-                    default='CENTER'
-                   )
 
     def execute(self, context):
         objs = context.selected_objects
-        act = context.object
-        sce = context.scene
+        try:
+            bpy.ops.object.mode_set()
+        except:
+            pass
+        NOParent = False
+        '''检测所有选中对象，取消选择'''
+        for obj in objs:
+            obj.select_set(False)
+        for obj in objs:
+            if not obj.parent:
+                NOParent = True
+                '''如果是世界内对象，则释放子级'''
+                for children in getChildren(obj):
+                    children.select_set(True)
+                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+                    children.select_set(False)
+                continue
+            else:
+                '''如果是父子级之间对象，则将子级释放到更上一层的父级'''
+                for children in getChildren(obj):
+                    children.select_set(True)
+                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+                    bpy.context.view_layer.objects.active = obj.parent
+                    bpy.ops.object.parent_no_inverse_set(keep_transform=True)
+                    children.select_set(False)
+        for obj in objs:
+            '''清除所有选中对象的父级，完成取出。'''
+            obj.select_set(True)
+            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+            obj.select_set(False)
+        for obj in objs:
+            ''''''
+            obj.select_set(True)
+        return {'FINISHED'}
+        
+class selectParent(Operator):
+    bl_idname = "object.select_parent_visn"
+    bl_label = "Select Parent"
+    bl_description = "Select Parent"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        objs = context.selected_objects
         try:
             bpy.ops.object.mode_set()
         except:
             pass
         for obj in objs:
+            obj.select_set(False)
+        for obj in objs:
+            if not obj.parent:
+                continue
+            obj.parent.select_set(True)
+        return {'FINISHED'}    
+
+class selectChildren(Operator):
+    bl_idname = "object.select_children_visn"
+    bl_label = "Select Children"
+    bl_description = "Select All Children"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        objs = context.selected_objects
+        try:
+            bpy.ops.object.mode_set()
+        except:
+            pass
+        for obj in objs:
+            '''取消本体选择'''
+            obj.select_set(False)
+        for obj in objs:
+            '''获取子级选择'''
+            for children in getChildren(obj):
+                children.select_set(True)
+        return {'FINISHED'}    
+
+class PickupNewParent(Operator):
+    '''把选定对象，捡出来放在世界层级，保留子级关系'''
+    bl_idname = "object.pickup_new_parent_visn"
+    bl_label = "Pickup to New Parent"
+    bl_description = "pickup anywhere selected objects to new parent"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        objs = context.selected_objects
+        try:
+            bpy.ops.object.mode_set()
+        except:
+            pass
+        for obj in objs:
+            '''清除选定对象的父级'''
             obj.select_set(True)
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
             obj.select_set(False)
             
-        if self.locat == 'CURSOR':
-            loc = sce.cursor.location
-        elif self.locat == 'ACTIVE':
-            loc = act.location
-        else:
-            loc = centro(objs)
-   
+        loc = centro(objs)
         bpy.ops.object.add(type='EMPTY', location=loc)
-        context.object.name = self.nombre
-        context.object.show_name = True
-        context.object.show_in_front = True
-            
-        if self.grupo:
-            bpy.ops.collection.create(name=self.nombre)
-            bpy.ops.collection.objects_add_active()
-
         for o in objs:
             o.select_set(True)
             if not o.parent:
                 bpy.ops.object.parent_no_inverse_set(keep_transform=True)
-            if self.grupo:
-                bpy.ops.collection.objects_add_active()
             o.select_set(False)
-            
-        return {'FINISHED'}
         return {'FINISHED'}
 
 class fastSetParent(Operator):
@@ -134,7 +195,6 @@ class fastSetParent(Operator):
             pass
         bpy.ops.object.parent_no_inverse_set(keep_transform=True)
         return {'FINISHED'}
-    
 
 class ClearParent(Operator):
     bl_idname = "object.clear_parent_visn"
@@ -143,14 +203,10 @@ class ClearParent(Operator):
     bl_options = {"REGISTER", "UNDO"}
     def execute(self, context):
         objs = context.selected_objects
-        act = context.object
-        sce = context.scene
-
         try:
             bpy.ops.object.mode_set()
         except:
             pass
-
         for obj in objs:
             obj.select_set(True)
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
@@ -158,20 +214,18 @@ class ClearParent(Operator):
         return {'FINISHED'}
 
 class RAQ(Operator):    
-    bl_idname = "object.release_all_children_visn"
-    bl_label = "Release children"
-    bl_description = "clear all the children of selected objects"
+    bl_idname = "object.release_all_children_to_world_visn"
+    bl_label = "Release to World"
+    bl_description = "release all the children of selected objects to world"
     bl_options = {"REGISTER", "UNDO"}
     def execute(self, context):
         objs = context.selected_objects
-        act = context.object
-        sce = context.scene
-
         try:
             bpy.ops.object.mode_set()
         except:
             pass
-
+        for obj in objs:
+            obj.select_set(False)
         for obj in objs:
             for children in getChildren(obj):
                 children.select_set(True)
@@ -179,6 +233,40 @@ class RAQ(Operator):
                 children.select_set(False)
         return {'FINISHED'}
     
+class RAQtoSubparent(Operator):    
+    bl_idname = "object.release_all_children_to_subparent_visn"
+    bl_label = "Release to Sub-parent"
+    bl_description = "release all the children of selected objects to subparent"
+    bl_options = {"REGISTER", "UNDO"}
+    def execute(self, context):
+        objs = context.selected_objects
+        try:
+            bpy.ops.object.mode_set()
+        except:
+            pass
+        NOParent = False
+        for obj in objs:
+            obj.select_set(False)
+        for obj in objs:
+            if not obj.parent:
+                NOParent = True
+                for children in getChildren(obj):
+                    children.select_set(True)
+                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+                    children.select_set(False)
+            else:
+                for children in getChildren(obj):
+                    children.select_set(True)
+                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+                    bpy.context.view_layer.objects.active = obj.parent
+                    bpy.ops.object.parent_no_inverse_set(keep_transform=True)
+                    children.select_set(False)
+        if not NOParent:
+            '''如果是父子级之间对象，选择区域再返回更上层父级'''
+            for obj in objs:
+                bpy.context.view_layer.objects.active = obj.parent
+                obj.parent.select_set(True)
+        return {'FINISHED'}
 
 class P2E(Operator):
     bl_idname = "object.parent_to_empty_visn"
@@ -186,71 +274,24 @@ class P2E(Operator):
     bl_description = "Parent selected objects to a new Empty"
     bl_options = {"REGISTER", "UNDO"}
 
-    nombre: StringProperty(
-                    name="",
-                    default='OBJECTS',
-                    description='Give the empty / group a name'
-                    )
-    grupo: BoolProperty(
-                    name="Create Group",
-                    default=False,
-                    description="Also add objects to a group"
-                    )
-    locat: EnumProperty(
-                    name='',
-                    items=[('CURSOR', 'Cursor', 'Cursor'), ('ACTIVE', 'Active', 'Active'),
-                           ('CENTER', 'Center', 'Selection Center')],
-                    description='Empty location',
-                    default='CENTER'
-                   )
-
-    @classmethod
-    def poll(cls, context):
-        objs = context.selected_objects
-        return (len(objs) > 0)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, "nombre")
-        column = layout.column(align=True)
-        column.prop(self, "locat")
-        column.prop(self, "grupo")
-
     def execute(self, context):
         objs = context.selected_objects
-        act = context.object
-        sce = context.scene
-
         try:
             bpy.ops.object.mode_set()
         except:
             pass
-
-        if self.locat == 'CURSOR':
-            loc = sce.cursor.location
-        elif self.locat == 'ACTIVE':
-            loc = act.location
-        else:
-            loc = centro(objs)
-
+        
+        loc = centro(objs)
         sameParent = True
         for o in objs:
             if not o.parent:
                 sameParent = False
                 break
             sameParent = o.parent == objs[0].parent
-            
               
         bpy.ops.object.add(type='EMPTY', location=loc)
-        context.object.name = self.nombre
-        context.object.show_name = True
-        context.object.show_in_front = True
         if sameParent:
             context.object.parent = objs[0].parent
-            
-        if self.grupo:
-            bpy.ops.collection.create(name=self.nombre)
-            bpy.ops.collection.objects_add_active()
 
         for o in objs:
             o.select_set(True)
@@ -258,8 +299,6 @@ class P2E(Operator):
                 bpy.ops.object.parent_no_inverse_set(keep_transform=True)
             if sameParent:
                 bpy.ops.object.parent_no_inverse_set(keep_transform=True)
-            if self.grupo:
-                bpy.ops.collection.objects_add_active()
             o.select_set(False)
             
         return {'FINISHED'}

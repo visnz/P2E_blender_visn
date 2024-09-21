@@ -10,8 +10,18 @@
 
 2. Clear Parent：快速清除父级并保留当前位置信息
 
-3. Release Children：快速释放所有子级
+3. Release to World：快速释放所有子级
 
-4. Pickup to New Parent：复杂的不同层级之间的物体，快速抽离出来放进一个新的父级，方便整理和管理
+4. Pickup to New Parent：不同层级之间的物体，单独拎出来放进一个新的父级
 
-5. Fast Parent：快速创建父级，PSR=0，和C4D的“alt+G”同等效果。
+5. Fast Parent：快速创建父级，PSR=0
+
+0921更新功能：
+
+6. Pickup Solo：把选中物体单独拎出来，其余部分自动保持父子级关系
+
+7. Release to Sub-parent：释放子级到上一层父级
+
+8. Select Children：选择所有子级
+
+8. Select Parent：选择父级
