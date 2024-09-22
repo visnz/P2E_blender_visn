@@ -32,6 +32,7 @@ class NewpanelST(bpy.types.Panel):
         layout.operator("object.release_all_children_to_subparent_visn")
         layout.operator("object.solo_pick_visn")
         layout.operator("object.pickup_new_parent_visn")
+        layout.operator("object.fast_camera_visn")
 
 def register():
     bpy.utils.register_class(NewpanelST)
@@ -44,7 +45,8 @@ def register():
     bpy.utils.register_class(selectChildren)
     bpy.utils.register_class(selectParent)
     bpy.utils.register_class(soloPick)
-    
+    bpy.utils.register_class(fastCentreCamera)
+   
 def unregister():
     bpy.utils.unregister_class(NewpanelST)
     bpy.utils.unregister_class(P2E)
@@ -56,6 +58,7 @@ def unregister():
     bpy.utils.unregister_class(selectChildren)
     bpy.utils.unregister_class(selectParent)
     bpy.utils.unregister_class(soloPick)
+    bpy.utils.unregister_class(fastCentreCamera)
     
 def centro(sel):
     x = sum([obj.location[0] for obj in sel]) / len(sel)
@@ -69,6 +72,47 @@ def getChildren(myObject):
         if ob.parent == myObject: 
             children.append(ob) 
     return children 
+
+class fastCentreCamera(Operator):
+    bl_idname = "object.fast_camera_visn"
+    bl_label = "Fast Camera"
+    bl_description = "Create camera stare at the selections"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    def execute(self, context):
+        '''获取创建点'''
+        objs = context.selected_objects
+        loc = centro(objs)
+        '''创建摄像机'''
+        bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1))
+        bpy.context.active_object.name = 'NewCamera'
+        cams = context.selected_objects
+        bpy.context.space_data.camera = cams[0]
+        bpy.ops.view3d.camera_to_view()
+        bpy.ops.object.add(type='EMPTY', location=cams[0].location, rotation=cams[0].rotation_euler)
+        bpy.context.active_object.name = 'CameraProtection'
+        bpy.ops.object.constraint_add(type='DAMPED_TRACK')
+        camP = context.selected_objects
+        cams[0].select_set(True)
+        bpy.ops.object.parent_no_inverse_set(keep_transform=True)
+        cams[0].lock_location[0]=True
+        cams[0].lock_location[1]=True
+        cams[0].lock_location[2]=True
+        cams[0].lock_rotation[0]=True
+        cams[0].lock_rotation[1]=True
+        cams[0].lock_rotation[2]=True
+        '''创建原点的空物体'''
+        bpy.ops.object.add(type='EMPTY', location=loc)
+        bpy.context.active_object.name = 'CameraCentre'
+        camC = context.selected_objects
+        camP[0].select_set(True)
+        bpy.ops.object.parent_no_inverse_set(keep_transform=True)
+        camP[0].select_set(False)
+        cams[0].select_set(False)
+        camP[0].constraints["Damped Track"].target = bpy.data.objects[camC[0].name]
+        camP[0].constraints["Damped Track"].track_axis = 'TRACK_NEGATIVE_Z'
+
+        return {'FINISHED'}
 
 class soloPick(Operator):
     '''断开所选物体的所有父子级关系，捡出来放在世界层级，子级归更上一层父级管。'''
