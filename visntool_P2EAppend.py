@@ -1,7 +1,7 @@
 bl_info = {
     "name": "STOOL",
     "author": "ST",
-    "version": (0, 2),
+    "version": (0, 2, 1),
     "blender": (4, 0, 0),
 }
 
@@ -66,6 +66,12 @@ def centro(sel):
     z = sum([obj.location[2] for obj in sel]) / len(sel)
     return (x, y, z)
 
+def centroGlobal(sel):
+    x = sum([obj.matrix_world.translation[0] for obj in sel]) / len(sel)
+    y = sum([obj.matrix_world.translation[1] for obj in sel]) / len(sel)
+    z = sum([obj.matrix_world.translation[2] for obj in sel]) / len(sel)
+    return (x, y, z)
+
 def getChildren(myObject): 
     children = [] 
     for ob in bpy.data.objects: 
@@ -82,7 +88,7 @@ class fastCentreCamera(Operator):
     def execute(self, context):
         '''获取创建点'''
         objs = context.selected_objects
-        loc = centro(objs)
+        loc = centroGlobal(objs)
         '''创建摄像机'''
         bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1))
         bpy.context.active_object.name = 'NewCamera'
