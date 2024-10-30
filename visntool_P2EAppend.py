@@ -1,7 +1,7 @@
 bl_info = {
     "name": "STOOL",
     "author": "ST",
-    "version": (0, 2, 1),
+    "version": (0, 2, 2),
     "blender": (4, 0, 0),
 }
 
@@ -88,7 +88,10 @@ class fastCentreCamera(Operator):
     def execute(self, context):
         '''获取创建点'''
         objs = context.selected_objects
-        loc = centroGlobal(objs)
+        if len(objs)==0:
+            loc = (0,0,0)
+        else:
+            loc = centroGlobal(objs)
         '''创建摄像机'''
         bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1))
         bpy.context.active_object.name = 'NewCamera'
@@ -338,8 +341,10 @@ class P2E(Operator):
                 sameParent = False
                 break
             sameParent = o.parent == objs[0].parent
-              
-        bpy.ops.object.add(type='EMPTY', location=loc)
+        if len(objs)==1:
+            bpy.ops.object.add(type='EMPTY', location=loc,rotation=objs[0].rotation_euler)
+        else: 
+            bpy.ops.object.add(type='EMPTY', location=loc)   
         if sameParent:
             context.object.parent = objs[0].parent
 
